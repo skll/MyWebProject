@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:aop="http://www.springframework.org/schema/aop" 
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+        http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.0.xsd
+        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd
+        http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.0.xsd
+        http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.0.xsd">
+ 
+	<!-- 扫描到有@Component @Controller@Service等这些注解的类 ,则把这些类注册为bean -->
+	<!-- spring不要扫MVC的controller,否则引起事务失效 -->
+	<context:component-scan base-package="com.ligx">
+		<context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller" />
+	</context:component-scan>
+
+	<bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="ignoreResourceNotFound" value="true" />
+		<property name="locations" value="classpath:jdbc.properties"/>
+	</bean>
+	
+	<!--配置数据源 -->
+	<bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource" destroy-method="close">
+		<property name="driverClassName" value="${driver}" />
+        <property name="url" value="${url}" />
+        <property name="username" value="${username}" />
+        <property name="password" value="${password}" />
+        <!-- 初始化连接大小 -->
+        <property name="initialSize" value="${initialSize}"></property>
+        <!-- 连接池最大数量 -->
+        <property name="maxActive" value="${maxActive}"></property>
+        <!-- 连接池最大空闲 -->
+        <property name="maxIdle" value="${maxIdle}"></property>
+        <!-- 连接池最小空闲 -->
+        <property name="minIdle" value="${minIdle}"></property>
+        <!-- 获取连接最大等待时间 -->
+        <property name="maxWait" value="${maxWait}"></property>
+	</bean>
+	
+	<!-- 定义Mybatis的SqlSessionFactory -->
+	<bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<!-- 定义数据源 -->
+		<property name="dataSource" ref="dataSource" />
+		<!-- 指定mybatis全局配置文件 -->
+		<property name="configLocation" value="classpath:mybatis/mybatis-config.xml"/>
+		<!-- 自动扫描mapping.xml文件 -->
+  		<property name="mapperLocations" value="classpath:com/ligx/mapper/*/*.xml" />  
+  		<!-- 别名扫描包 -->
+  		<property name="typeAliasesPackage" value="com.entity"/>
+	</bean>
+	
+	<!-- 配置自动生成接口的实现类  
+	 配置 转换器，对于在basePackage设置的包（包括子包）下的接口类，如果在Mapper.xml文件中定义过，
+	将被转换成spring的BEAN，在调用 的地方通过@Autowired方式将可以注入接口实例-->
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="sqlSessionFactory" ref="sqlSessionFactory"/>
+		<property name="basePackage" value="com.dao"/>
+	</bean>
+	
+	<!-- 定义事务管理器 -->
+	<bean id="transactionManager"
+		class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+ 
+	<!-- 定义事务策略 -->
+	<tx:advice id="txAdvice" transaction-manager="transactionManager">
+		<tx:attributes>
+ 				<!--所有以query开头的方法都是只读的 --> 
+<!-- 			<tx:method name="query*" read-only="true" /> -->
+ 				<!--其他方法使用默认事务策略 -->
+<!-- 			<tx:method name="*" /> -->
+			<tx:method name="create*" propagation="REQUIRED"/>  
+            <tx:method name="update*" propagation="REQUIRED"/>  
+            <tx:method name="delete*" propagation="REQUIRED"/>  
+            <tx:method name="execute*" propagation="REQUIRES_NEW"/>  
+            <tx:method name="decreaseIsComplete*" propagation="REQUIRES_NEW"/>
+            <tx:method name="query*" read-only="true"/>  
+            <tx:method name="count*" read-only="true"/>  
+            <!-- 其他方法使用默认的事务管理 -->  
+            <tx:method name="*"/> 
+		</tx:attributes>
+	</tx:advice>
+ 
+	<aop:config>
+		<!--pointcut元素定义一个切入点，execution中的第一个星号 用以匹配方法的返回类型，
+			这里星号表明匹配所有返回类型。 com.abc.dao.*.*(..)表明匹配com.service包下的所有类的所有 
+			方法 -->
+		<aop:pointcut id="myPointcut" expression="execution(* com.ligx.service.*.*(..))" />
+		<!--将定义好的事务处理策略应用到上述的切入点 -->
+		<aop:advisor advice-ref="txAdvice" pointcut-ref="myPointcut" />
+	</aop:config>
+	
+
+	 
+</beans>
